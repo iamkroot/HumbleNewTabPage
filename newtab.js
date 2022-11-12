@@ -57,7 +57,7 @@ function render(node, target) {
 	// folder
 	if (node.children) {
 		// render children
-		if (a.open || getConfig('remember_open') && localStorage.getItem('open.' + node.id)) {
+		if (a.open || getConfig('remember_open') && chrome.storage.local.get('open.' + node.id)) {
 			setClass(a, node, true);
 			a.open = true;
 			getChildrenFunction(node)(function(result) {
@@ -188,7 +188,7 @@ function addFolderHandlers(node, a) {
 				});
 			if (pos.x > 0)
 				items.push({
-					label: 'Move folder left',
+					label: 'Move folder sss left',
 					action: function() {
 						addRow(node.id, pos.x - 1);
 					}
@@ -720,7 +720,7 @@ function toggle(node, a) {
 	a.open = !isopen;
 	if (isopen) {
 		// close folder
-		localStorage.removeItem('open.' + node.id);
+		chrome.storage.local.remove('open.' + node.id);
 		if (a.nextSibling){
 			// auto-close child folders
 			if (getConfig('auto_close')) {
@@ -736,7 +736,8 @@ function toggle(node, a) {
 		}
 	} else {
 		// open folder
-		localStorage.setItem('open.' + node.id, true);
+		let opt = {open: Object.fromEntries([[node.id, true]])};
+		chrome.storage.local.set(opt);
 		// auto-close sibling folders
 		if (getConfig('auto_close')) {
 			var siblings = a.parentNode.parentNode.children;
@@ -872,7 +873,7 @@ function loadColumns() {
 	for (var x = 0; ; x++) {
 		var row = [];
 		for (var y = 0; ; y++) {
-			var id = localStorage.getItem('column.' + x + '.' + y);
+			var id = chrome.storage.local.get('column.' + x + '.' + y);
 			if (id) row.push(id); else break;
 		}
 		if (row.length > 0) columns.push(row); else break;
@@ -901,9 +902,9 @@ function saveColumns() {
 	// clear previous config
 	for (var x = 0; ; x++) {
 		for (var y = 0; ; y++) {
-			var id = localStorage.getItem('column.' + x + '.' + y);
+			var id = chrome.storage.local.get('column.' + x + '.' + y);
 			if (id)
-				localStorage.removeItem('column.' + x + '.' + y);
+				chrome.storage.local.remove('column.' + x + '.' + y);
 			else
 				break;
 		}
@@ -912,11 +913,15 @@ function saveColumns() {
 	}
 	verifyColumns();
 	// save new config
+	let cols = {};
 	for (var x = 0; x < columns.length; x++) {
+		cols[x] = {};
 		for (var y = 0; y < columns[x].length; y++) {
-			localStorage.setItem('column.' + x +'.' + y, columns[x][y]);
+			cols[x][y] = columns[x][y];
+			// chrome.storage.local.set(`column.${x}.${y}`, columns[x][y]);
 		}
 	}
+	chrome.storage.local.set(cols);
 	// refresh
 	loadColumns();
 }
@@ -1035,7 +1040,7 @@ function refreshClosed() {
 // gets weather info from yahoo weather
 function getWeather(callback) {
 	// check cache (30 minute expiry)
-	var cached = JSON.parse(localStorage.getItem('weather.cache'));
+	var cached = JSON.parse(chrome.storage.local.get('weather.cache'));
 	if (cached && new Date() - new Date(cached.date) < 1000 * 60 * 30) {
 		callback(cached.data);
 		return;
@@ -1140,13 +1145,13 @@ function getLocationId(text, callback, onerror) {
 function refreshWeather(data, url) {
 	// cache data
 	if (data)
-		localStorage.setItem('weather.cache', JSON.stringify({
+		chrome.storage.local.set({'weather.cache': JSON.stringify({
 			data: data,
 			url: url,
 			date: new Date()
-		}));
+		})});
 	else
-		localStorage.removeItem('weather.cache');
+		chrome.storage.local.remove('weather.cache');
 	// render
 	var targets = document.getElementsByClassName('weather');
 	for (var i = 0; i < targets.length; i++) {
@@ -1287,7 +1292,7 @@ var theme = {};
 
 // get config value or default
 function getConfig(key) {
-	var value = localStorage.getItem('options.' + key);
+	var value = chrome.storage.local.get(["options", key]);
 	if (value != null)
 		return typeof config[key] === 'number' ? Number(value) : value;
 	else
@@ -1296,10 +1301,13 @@ function getConfig(key) {
 
 // set config value
 function setConfig(key, value) {
-	if (value != null)
-		localStorage.setItem('options.' + key, typeof config[key] === 'number' ? Number(value) : value);
+	if (value != null){
+		let opt = {options: {}};
+		opt.options[key] = typeof config[key] === 'number' ? Number(value) : value;
+		chrome.storage.local.set(opt);
+	}
 	else {
-		localStorage.removeItem('options.' + key);
+		chrome.storage.local.remove('options.' + key);
 		value = (theme.hasOwnProperty(key) ? theme[key] : config[key]);
 	}
 	// special case settings
@@ -1586,18 +1594,16 @@ function initSettings() {
 					}
 					return value;
 				};
-				exports.value = JSON.stringify(localStorage, replacer);
+				exports.value = JSON.stringify(chrome.storage.local.get(null), replacer);
 				imports.value = '';
 				imports.placeholder = 'Paste exported settings here';
 				imports.onchange = function() {
 					try {
 						var imported = JSON.parse(imports.value);
-						for(var key in imported) {
-							localStorage.setItem(key, imported[key]);
-						}
+						chrome.storage.local.set(imported);
 						imports.value = '';
 						imports.placeholder = 'Import successful!';
-						exports.value = JSON.stringify(localStorage, replacer);
+						exports.value = JSON.stringify(chrome.storage.local.get(null), replacer);
 						loadSettings();
 						loadColumns();
 					} catch (e) {
@@ -1725,3 +1731,5 @@ if (location.search === '?options')
 // refresh recently closed
 if (chrome.sessions)
 	chrome.sessions.onChanged.addListener(refreshClosed);
+
+// if()

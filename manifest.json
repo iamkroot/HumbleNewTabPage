@@ -19,7 +19,8 @@
 		"bookmarks",
 		"topSites",
 		"tabs",
-		"sessions"
+		"sessions",
+		"storage"
 	],
 	"chrome_url_overrides":
 	{
